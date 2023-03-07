@@ -7,6 +7,7 @@ import logging
 import dpath.util
 import json
 
+from senselink.giest import *
 from .data_source import *
 from .plug_instance import *
 from .tplink_encryption import *
@@ -17,6 +18,7 @@ from senselink.homeassistant import *
 STATIC_KEY = 'static'
 MUTABLE_KEY = 'mutable'
 HASS_KEY = 'hass'
+GIEST_KEY = 'giest'
 MQTT_KEY = 'mqtt'
 AGG_KEY = 'aggregate'
 PLUGS_KEY = 'plugs'
@@ -50,10 +52,11 @@ class SenseLinkProtocol(asyncio.DatagramProtocol):
     transport = None
     target = None
 
-    def __init__(self, instances, finished):
+    def __init__(self, instances, finished, controllers):
         self._instances = instances
         self.should_respond = True
         self.finished = finished
+        self._controllers=controllers
 
     def connection_made(self, transport):
         self.transport = transport
@@ -64,12 +67,15 @@ class SenseLinkProtocol(asyncio.DatagramProtocol):
     def datagram_received(self, data, addr):
         # Decrypt request data
         decrypted_data = decrypt(data)
+
         # Determine target
         request_addr = self.target or addr[0]
 
         try:
             # Get JSON data
             json_data = json.loads(decrypted_data)
+
+            logging.debug(f"Broadcast received from {request_addr}: {json_data}")
 
             # Sense requests the emeter and system parameters
             if keys_exist(json_data, "emeter", "get_realtime") and keys_exist(json_data, "system", "get_sysinfo"):
@@ -80,6 +86,9 @@ class SenseLinkProtocol(asyncio.DatagramProtocol):
                     return
 
                 logging.debug(f"Broadcast received from {request_addr}: {json_data}")
+                
+                for cont in self._controllers:
+                    cont.get_update()
 
                 # Build and send responses
                 for inst in self._instances.values():
@@ -128,6 +137,7 @@ class SenseLink:
         self.target = None
         self.server_task = None
         self._instances = {}
+        self._controllers=set()
         self._agg_instances = {}
         self.tasks = set()
 
@@ -218,6 +228,26 @@ class SenseLink:
                     continue
                 self.has_aggregate = True
                 aggregate = source[AGG_KEY]
+            # Giest
+            elif source_id.lower() == GIEST_KEY:
+                giest_config=source[GIEST_KEY]
+                if giest_config is None:
+                    logging.error(f"Configuration error for Source {source_id}")
+                host=giest_config['host']
+                d_id=giest_config['device_id']
+                giest_controller=GIESTController(host,d_id)
+
+                # Generate plug instances
+                plugs = giest_config[PLUGS_KEY]
+                logging.info("Generating GIEST instances")
+                instances = PlugInstance.configure_plugs(plugs, GIESTSource, giest_controller)
+                self.add_instances(instances)
+
+                self._controllers.add(giest_controller)
+                # Start controller
+                # giest_controller.connect()
+                # giest_task = giest_controller.connect()
+                # self.tasks.add(giest_task)
             else:
                 logging.error(f"Source type '{source_id}' not recognized")
 
@@ -274,7 +304,7 @@ class SenseLink:
     async def server_start(self):
         loop = asyncio.get_running_loop()
         finished = loop.create_future()
-        protocol = SenseLinkProtocol(self._instances, finished)
+        protocol = SenseLinkProtocol(self._instances, finished,self._controllers)
         protocol.should_respond = self.should_respond
         protocol.target = self.target
 

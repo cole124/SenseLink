@@ -1,9 +1,10 @@
 FROM python:3.10-slim
-MAINTAINER Charles Powell <cbpowell@gmail.com>
 
 # Install all dependencies
 ADD . /senselink
-RUN pip install /senselink --use-feature=in-tree-build
+
+RUN python -m pip install -r /senselink/requirements.txt
+RUN pip install /senselink
 
 # Make non-root user
 RUN useradd --create-home appuser

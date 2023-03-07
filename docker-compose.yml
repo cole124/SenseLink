@@ -2,10 +2,11 @@ version: "3.7"
 services:
   senselink:
     container_name: senselink
-    image: theta142/senselink:latest
+    image: cshackleton/senselink:latest
     restart: unless-stopped
     network_mode: host
-      
+    ports:
+        - "9999:9999"
     # Optional environment variables
     # environment:
       # - LOGLEVEL=DEBUG

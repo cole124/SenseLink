@@ -53,7 +53,7 @@ sources:
     host: "your.mqtt.broker"
     port: 1883       # Optional
     username: admin  # Optional
-    password: supersecret1  # Optional
+    password: Au2aAEv96.8hQpR  # Optional
     plugs:
         # Direct power reporting example
         - UPS:
@@ -82,7 +82,6 @@ sources:
                 # Use If the device will normally publish updates on at least a regular interval, and you
                 #  want to assume the "off" state if it misses that interval (*technically* this
                 #  should be done via MQTT's Last Will & Testament feature...)
-
 # Static
   - static:
       plugs:

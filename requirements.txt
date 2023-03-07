@@ -1,0 +1,5 @@
+websockets
+asyncio_mqtt
+dpath
+pyyaml
+requests
